@@ -1,0 +1,22 @@
+-- =============================================================================
+-- SocialAutomation — publish_jobs.payload (migration 0003)
+-- =============================================================================
+-- Additive, backward-compatible column.
+--
+-- Why: the `@social/queue` `JobStore` contract (packages/queue/src/types.ts)
+-- requires every implementation to round-trip `PublishJobRecord` WITHOUT LOSS,
+-- and that record carries a `payload` (JobPayload) field. In the full pipeline
+-- the execution payload is DERIVED at run time from the referenced
+-- `post_variant` (+ the decrypted token from the auth vault), so the queue
+-- skeleton documented `payload` as "not a DB column". But a persisted JobStore
+-- that is a true drop-in for the in-memory one must survive an
+-- enqueue -> claim -> execute round trip across process restarts, which means
+-- the enqueue-time payload has to live somewhere durable.
+--
+-- This column carries that enqueue-time payload as JSON. Deployments that fully
+-- derive the payload from `post_variant_id` at run time may simply leave it
+-- NULL. Nullable + defaulted so it does not affect existing rows or the 0001
+-- portability contract (TEXT JSON, application-supplied).
+-- =============================================================================
+
+ALTER TABLE publish_jobs ADD COLUMN payload TEXT;  -- JSON: JobPayload captured at enqueue time

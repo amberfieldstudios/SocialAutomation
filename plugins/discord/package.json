@@ -1,0 +1,33 @@
+{
+  "name": "@social/plugin-discord",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Discord connector: bot API (REST) + webhooks. Messages, embeds, role pings, threads, buttons, cross-server posting.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "socialPlugin": {
+    "platform": "discord",
+    "contractVersion": "1.1.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@social/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@social/conformance": "workspace:*",
+    "@social/logging": "workspace:*",
+    "@types/node": "^22.5.0",
+    "typescript": "^5.5.0",
+    "undici": "^6.19.8",
+    "vitest": "^2.0.5"
+  }
+}

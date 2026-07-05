@@ -1,0 +1,25 @@
+{
+  "name": "@social/queue",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Persisted publish job queue: worker loop, retry with exponential backoff + jitter, dead-letter queue, idempotency keys, job lifecycle notifications.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@social/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.5"
+  }
+}

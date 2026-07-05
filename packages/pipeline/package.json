@@ -1,0 +1,36 @@
+{
+  "name": "@social/pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end publish integration: ConnectorResolver (plugin registry + auth OperationContext) and the publish path (validate -> enqueue -> worker -> connector.publish -> persisted PublishResult) wiring @social/core, @social/auth, @social/queue and @social/db together.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@social/ai": "workspace:*",
+    "@social/analytics": "workspace:*",
+    "@social/auth": "workspace:*",
+    "@social/core": "workspace:*",
+    "@social/db": "workspace:*",
+    "@social/logging": "workspace:*",
+    "@social/media": "workspace:*",
+    "@social/queue": "workspace:*",
+    "@social/scheduler": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "sharp": "^0.33.5",
+    "typescript": "^5.5.0",
+    "undici": "^6.19.8",
+    "vitest": "^2.0.5"
+  }
+}

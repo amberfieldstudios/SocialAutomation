@@ -1,0 +1,35 @@
+{
+  "name": "social-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Universal Social Distribution & Automation System — a plugin-based TypeScript/Node framework.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.7.0",
+  "scripts": {
+    "typecheck": "pnpm -r run typecheck",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r --if-present run test",
+    "start": "node scripts/start.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "pnpm": {
+    "//": "better-sqlite3 (an OPTIONAL dep of @social/db) is intentionally NOT in onlyBuiltDependencies: its native build needs a C++ toolchain that isn't available in every environment, and @social/db auto-falls-back to the built-in node:sqlite engine when the binding is absent. To use the faster native engine, add \"better-sqlite3\" here (or run `pnpm approve-builds better-sqlite3`) on a machine with a toolchain/prebuilt binary.",
+    "onlyBuiltDependencies": [
+      "sharp"
+    ]
+  }
+}

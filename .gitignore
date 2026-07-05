@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build outputs (rebuilt via pnpm -r build / scripts/build-distributable.ps1)
+dist/
+runtime/
+*.tsbuildinfo
+/SocialAutomation.exe
+launcher/bin/
+launcher/obj/
+
+# AI model files — downloaded on first use, never committed
+*.gguf
+
+# Local data / secrets
+*.sqlite
+*.sqlite3
+*.db
+.env
+.env.*
+
+# Logs & scratch
+*.log
+coverage/

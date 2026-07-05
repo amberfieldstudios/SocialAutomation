@@ -1,0 +1,28 @@
+{
+  "name": "@social/media",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Media processing stage: derives per-platform image/video renditions (square/portrait/landscape/story/thumbnail/compressed), selects video bitrate/resolution/caption targets, validates source media against platform specs, and writes media_assets/media_renditions records.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@social/core": "workspace:*",
+    "@social/logging": "workspace:*",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.5"
+  }
+}
