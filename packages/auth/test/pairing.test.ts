@@ -152,6 +152,31 @@ describe('PKCE + CSRF state', () => {
 
 describe('beginPairing (auth-code + PKCE)', () => {
   it('builds an authorize URL, stores the session, and wires the PKCE challenge', async () => {
+    // Mastodon is the PKCE platform in the registry (Twitch does NOT support
+    // PKCE per dev.twitch.tv/docs/authentication/getting-tokens-oauth — see
+    // the confidential auth_code test below).
+    const connector = new MockConnector();
+    const { coordinator, sessions } = buildCoordinator(connector);
+
+    const result = await coordinator.beginPairing('mastodon', ['publish']);
+    expect(result.kind).toBe('authorize_url');
+    if (result.kind !== 'authorize_url') return;
+
+    expect(result.authorizeUrl).toContain('code_challenge=');
+
+    // Session persisted with the PKCE verifier (a secret held server-side).
+    const session = await sessions.get(result.state);
+    expect(session?.platformId).toBe('mastodon');
+    expect(session?.codeVerifier).toBeDefined();
+    // The challenge in the URL is exactly S256(verifier) — PKCE is correctly wired.
+    const authReq = connector.requests[0];
+    expect(authReq?.kind).toBe('authorize_url');
+    if (authReq?.kind === 'authorize_url') {
+      expect(authReq.codeChallenge).toBe(challengeFor(session!.codeVerifier!));
+    }
+  });
+
+  it('does NOT use PKCE for Twitch (confidential client, client_secret required instead)', async () => {
     const connector = new MockConnector();
     const { coordinator, sessions } = buildCoordinator(connector);
 
@@ -161,17 +186,17 @@ describe('beginPairing (auth-code + PKCE)', () => {
 
     // Least-privilege scopes were requested.
     expect(result.scopes).toEqual(['user:read:email', 'channel:manage:broadcast']);
-    expect(result.authorizeUrl).toContain('code_challenge=');
+    // No PKCE challenge is generated or sent for Twitch — the URL's
+    // code_challenge param is empty.
+    expect(result.authorizeUrl).toMatch(/code_challenge=(&|$)/);
 
-    // Session persisted with the PKCE verifier (a secret held server-side).
     const session = await sessions.get(result.state);
     expect(session?.platformId).toBe('twitch');
-    expect(session?.codeVerifier).toBeDefined();
-    // The challenge in the URL is exactly S256(verifier) — PKCE is correctly wired.
+    expect(session?.codeVerifier).toBeUndefined();
     const authReq = connector.requests[0];
     expect(authReq?.kind).toBe('authorize_url');
     if (authReq?.kind === 'authorize_url') {
-      expect(authReq.codeChallenge).toBe(challengeFor(session!.codeVerifier!));
+      expect(authReq.codeChallenge).toBeUndefined();
     }
   });
 });
@@ -208,12 +233,13 @@ describe('completePairing (code exchange)', () => {
     const ctx = await h.tokenManager.createContext(summary.id);
     expect(ctx.token.accessToken).toBe('SECRET-ACCESS-PAIRED');
 
-    // The exchange carried the PKCE verifier.
+    // Twitch is a confidential client (no PKCE) — the exchange carries no
+    // codeVerifier. (Mastodon's PKCE wiring is covered above.)
     const exchange = connector.requests.find((r) => r.kind === 'exchange_code');
     expect(exchange?.kind).toBe('exchange_code');
     if (exchange?.kind === 'exchange_code') {
       expect(exchange.code).toBe('AUTH-CODE-123');
-      expect(exchange.codeVerifier).toBeDefined();
+      expect(exchange.codeVerifier).toBeUndefined();
     }
   });
 

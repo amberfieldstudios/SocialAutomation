@@ -75,15 +75,20 @@ The grant a platform uses is declared once in a **flow descriptor** (`oauth/regi
 
 ### Twitch (m3)
 
-- **OAuth 2.0 Authorization Code + PKCE.** Twitch supports PKCE. User/channel operations require
-  scoped user access tokens (e.g. `channel:manage:broadcast`, `channel:read:subscriptions`,
-  `user:read:email`). Access tokens are short-lived (~4h) and Twitch issues a **refresh token** →
-  normal refresh machinery.
+- **OAuth 2.0 Authorization Code, confidential client (no PKCE).** Twitch's authorization-code
+  grant does **not** support PKCE and **requires** `client_secret` in the token exchange (see
+  <https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/> — "Authorization code grant
+  flow"). The app must be registered with **Client Type: Confidential**, and the exchange
+  (`grant_type=authorization_code`) and refresh (`grant_type=refresh_token`) requests both send
+  `client_secret`. User/channel operations require scoped user access tokens (e.g.
+  `channel:manage:broadcast`, `channel:read:subscriptions`, `user:read:email`). Access tokens are
+  short-lived (~4h) and Twitch issues a **refresh token** → normal refresh machinery.
 - **Device Code Grant** offered as an alternate for headless pairing.
 - **Client Credentials** app token available for public/read endpoints with no user context.
 - Twitch expects periodic token validation; `TokenManager` treats a Twitch 401 as
   `TokenExpiredError` (refresh) unless the body indicates revocation → `TokenRevokedError`.
-- Grant: `auth_code_pkce` (primary), `device_code` (alt), `client_credentials` (app-level).
+- Grant: `auth_code` (primary, confidential — no PKCE), `device_code` (alt), `client_credentials`
+  (app-level).
 
 ### Bluesky / AT Protocol (m3)
 
@@ -106,7 +111,7 @@ The grant a platform uses is declared once in a **flow descriptor** (`oauth/regi
 | Platform | Grant (`oauth/registry.ts`) | Refresh? | Notes |
 |---|---|---|---|
 | discord | `auth_code_pkce` (user) / `platform_token` (bot, webhook) | user: yes / token: no | bot token + webhooks are static secrets |
-| twitch | `auth_code_pkce`, `device_code` (alt), `client_credentials` (app) | yes | ~4h access tokens, refresh rotates |
+| twitch | `auth_code` (confidential, no PKCE), `device_code` (alt), `client_credentials` (app) | yes | ~4h access tokens, refresh rotates; client_secret required in exchange + refresh |
 | bluesky | `platform_password` (AT Proto session) | yes | app password sealed as bootstrap credential |
 | x / twitter | `auth_code_pkce` | yes | v2 OAuth2, PKCE required |
 | reddit | `auth_code` (confidential) | yes | `duration=permanent` for a refresh token |
@@ -454,7 +459,7 @@ refresh-scheduler.ts # RefreshScheduler.scanOnce()/start()/stop() — proactive 
 
 | Platform | Primary grant (`FLOW_REGISTRY`) | Pairing entry point | Refresh | Notes |
 |---|---|---|---|---|
-| **twitch** | `auth_code_pkce` | `beginPairing('twitch', ops)` → authorize URL; `completePairing(state, code)` | yes | PKCE verifier held in the session, S256 challenge in the URL. Alternates: `device_code` (`beginPairing(…, { grant:'device_code' })` → `pollDevicePairing(state)`), `client_credentials`. |
+| **twitch** | `auth_code` (confidential, no PKCE) | `beginPairing('twitch', ops)` → authorize URL; `completePairing(state, code)` | yes | No PKCE — Twitch's authorization-code grant doesn't support it. `client_secret` is sent in both the exchange and the refresh request. Alternates: `device_code` (`beginPairing(…, { grant:'device_code' })` → `pollDevicePairing(state)`), `client_credentials`. |
 | **bluesky** | `platform_password` | `pairWithPassword('bluesky', { identifier, password, operations })` | yes | Exchanges handle + app password for `accessJwt`/`refreshJwt`; the app password is then sealed as a **non-current bootstrap row** (`token_type='atproto_app_password'`, decision A). |
 | **discord** | `platform_token` | `pairWithToken('discord', { token, tokenType:'bot'\|'webhook', profile })` | no | Bot token / webhook URL is a static secret — sealed directly, no code exchange, `expires_at = NULL` so it never refreshes. User-context OAuth (`auth_code_pkce`, `webhook.incoming`) is an **alternate** for the redirect path. |
 
@@ -496,12 +501,13 @@ and set its **redirect URI** to our callback (default `https://<host>/auth/callb
 match byte-for-byte).
 
 - **Twitch** — register at <https://dev.twitch.tv/console/apps>. Create an application, set the
-  **OAuth Redirect URL** to the callback above, choose client type **Public** to use PKCE without a
-  secret (or Confidential and also send the secret). Copy the **Client ID** (and secret if
-  confidential) into config. Authorize URL `https://id.twitch.tv/oauth2/authorize`, token URL
-  `https://id.twitch.tv/oauth2/token`, device URL `https://id.twitch.tv/oauth2/device`, revoke
-  `https://id.twitch.tv/oauth2/revoke` (official endpoints only). Request only the scopes from the
-  catalog.
+  **OAuth Redirect URL** to the callback above, and choose client type **Confidential** — Twitch's
+  authorization-code grant does not support PKCE and requires a `client_secret`, so **Public is not
+  a usable option here**. Click "New Secret" on the created app and copy it immediately (Twitch
+  shows it once). Copy the **Client ID** and **Client Secret** into config. Authorize URL
+  `https://id.twitch.tv/oauth2/authorize`, token URL `https://id.twitch.tv/oauth2/token`, device URL
+  `https://id.twitch.tv/oauth2/device`, revoke `https://id.twitch.tv/oauth2/revoke` (official
+  endpoints only). Request only the scopes from the catalog.
 - **Bluesky / AT Protocol** — no app registration for the app-password flow. In Bluesky
   **Settings → App Passwords**, the user creates an app password and supplies it with their handle;
   we call `com.atproto.server.createSession` on their PDS (default `https://bsky.social`) and refresh

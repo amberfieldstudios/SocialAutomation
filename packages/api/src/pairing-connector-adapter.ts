@@ -8,7 +8,7 @@
  * core-architect for folding into the core contract).
  *
  * The setup wizard (t1) never drives a device-code flow (Twitch's redirect
- * `auth_code_pkce` path covers it; device-code is only an "alternate" per
+ * `auth_code` path covers it; device-code is only an "alternate" per
  * docs/AUTH.md), so this adapter forwards every other kind straight through
  * and fails closed with a clear error on the two kinds no connector here
  * implements.

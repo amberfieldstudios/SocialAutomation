@@ -15,6 +15,12 @@
  *
  * Checks (see launcher/README.md "Verifying the distributable" / the
  * build-installer skill for the same list applied by hand):
+ *   0. ZIP ROUND-TRIP: every check below runs against a copy EXTRACTED FROM
+ *      THE RELEASE ZIP, not the staged folder. v1.0.0 shipped a staged
+ *      folder that passed every check while the zip silently dropped all of
+ *      pnpm's node_modules junctions -- users got "missing the server
+ *      runtime" on launch. The artifact users download is the only thing
+ *      worth verifying.
  *   1. Bundled runtime present (runtime\node-win-x64\node.exe in the staged folder).
  *   2. Self-contained launch: start the staged app using ONLY that bundled
  *      node.exe, with PATH emptied out (so it CANNOT fall back to a system
@@ -32,7 +38,7 @@
  *      certificate in this environment) -- see launcher/README.md.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -110,7 +116,61 @@ async function main() {
     console.log('--- Skipping build (--skip-build); verifying existing folder ---');
   }
 
-  const bundledNode = path.join(outDir, 'runtime', 'node-win-x64', 'node.exe');
+  // --- Zip round-trip: find the release zip the build produced and extract
+  // it fresh; everything below is verified against the EXTRACTED copy (what
+  // a user actually downloads), never the staged folder. The staged folder
+  // can pass every check while the zip is broken (v1.0.0 did exactly that:
+  // zipping dropped every pnpm junction). ---
+  const distDir = path.dirname(outDir);
+  let zipPath = null;
+  try {
+    const zips = (await readdir(distDir)).filter((n) => /^SocialAutomation-.+-win-x64\.zip$/.test(n));
+    if (zips.length > 0) zipPath = path.join(distDir, zips.sort().pop());
+  } catch {
+    /* dist dir missing entirely -- handled below */
+  }
+
+  let testDir = outDir;
+  if (zipPath) {
+    console.log('');
+    console.log(`--- Extracting release zip for round-trip verification: ${zipPath} ---`);
+    const extractRoot = path.join(os.tmpdir(), 'social-automation-verify-zip');
+    rmSync(extractRoot, { recursive: true, force: true });
+    mkdirSync(extractRoot, { recursive: true });
+    const tar = run('tar.exe', ['-xf', zipPath, '-C', extractRoot]);
+    const extracted = path.join(extractRoot, path.basename(outDir));
+    const extractedOk = tar.status === 0 && existsSync(extracted);
+    record(
+      'Release zip extracts cleanly',
+      extractedOk,
+      extractedOk ? `${zipPath} -> ${extracted}` : `tar.exe exited ${tar.status} or ${extracted} missing`,
+    );
+    if (!extractedOk) {
+      finish();
+      return;
+    }
+    testDir = extracted;
+    console.log('All checks below run against the extracted copy, not the staged folder.');
+  } else {
+    record(
+      'Release zip round-trip',
+      false,
+      `no SocialAutomation-*-win-x64.zip found in ${distDir} -- the build should produce it, and the ZIP (not the staged folder) is what must be verified`,
+    );
+  }
+
+  // The launch-critical file the v1.0.0 zip was missing: fail loudly here
+  // with a named file, not just a generic "never became ready" later.
+  const viteNodeEntry = ['node_modules', 'packages/api/node_modules']
+    .map((p) => path.join(testDir, ...p.split('/'), 'vite-node', 'vite-node.mjs'))
+    .find(existsSync);
+  record(
+    'Server runtime (vite-node) survived packaging',
+    Boolean(viteNodeEntry),
+    viteNodeEntry ?? 'vite-node/vite-node.mjs missing from the copy under test',
+  );
+
+  const bundledNode = path.join(testDir, 'runtime', 'node-win-x64', 'node.exe');
   const hasBundledNode = existsSync(bundledNode);
   record('Bundled Node runtime present', hasBundledNode, bundledNode);
   if (!hasBundledNode) {
@@ -119,7 +179,7 @@ async function main() {
   }
 
   // --- No LLM model bundled ---
-  const modelFiles = await findFiles(outDir, (name) => /\.(gguf|ggml|safetensors)$/i.test(name));
+  const modelFiles = await findFiles(testDir, (name) => /\.(gguf|ggml|safetensors)$/i.test(name));
   record(
     'No LLM model bundled',
     modelFiles.length === 0,
@@ -136,7 +196,7 @@ async function main() {
       /* best effort */
     }
   }
-  const stagedDbBefore = existsSync(path.join(outDir, 'data.sqlite'));
+  const stagedDbBefore = existsSync(path.join(testDir, 'data.sqlite'));
 
   // --- Self-contained launch + port-in-use handling, exercised together in
   // one run: occupy the default port first, then launch with PATH emptied
@@ -154,9 +214,9 @@ async function main() {
     holder = null;
   }
 
-  const bootstrapScript = path.join(outDir, 'launcher', 'bootstrap.mjs');
+  const bootstrapScript = path.join(testDir, 'launcher', 'bootstrap.mjs');
   const child = spawn(bundledNode, [bootstrapScript], {
-    cwd: outDir,
+    cwd: testDir,
     env: {
       // Deliberately empty PATH (keep only what Windows needs to function at
       // all) so this process CANNOT fall back to a system node even if one
@@ -210,7 +270,7 @@ async function main() {
 
   // --- User data isolation check (after a real run) ---
   const userDbExists = existsSync(path.join(userDataDir, 'data.sqlite'));
-  const stagedDbAfter = existsSync(path.join(outDir, 'data.sqlite'));
+  const stagedDbAfter = existsSync(path.join(testDir, 'data.sqlite'));
   record(
     'User data isolated outside the app folder',
     userDbExists && !stagedDbAfter,
@@ -218,7 +278,7 @@ async function main() {
   );
 
   // --- Code signing: not applicable in this environment; report clearly. ---
-  const exePath = path.join(outDir, 'SocialAutomation.exe');
+  const exePath = path.join(testDir, 'SocialAutomation.exe');
   record(
     'Code signing',
     true, // not a failure of the build -- a documented, owner-owned gap

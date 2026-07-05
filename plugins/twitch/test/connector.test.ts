@@ -336,16 +336,18 @@ describe('TwitchConnector — getAnalytics', () => {
 });
 
 describe('TwitchConnector — refreshToken', () => {
-  it('exchanges a refresh token for a new TokenSet', async () => {
+  it('exchanges a refresh token for a new TokenSet, sending client_secret (confidential client)', async () => {
     const logs: CapturedLog[] = [];
     const connector = new TwitchConnector({ logger: createTestLogger(logs), now: () => new Date('2026-07-04T12:00:00.000Z') });
+    let capturedBody: URLSearchParams | undefined;
     vi.stubGlobal(
       'fetch',
-      vi.fn(() =>
-        Promise.resolve(
+      vi.fn((_url: string | URL, init?: RequestInit) => {
+        capturedBody = init?.body as URLSearchParams;
+        return Promise.resolve(
           jsonResponse(200, { access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 14400, scope: ['channel:manage:broadcast'] }),
-        ),
-      ),
+        );
+      }),
     );
 
     const token = await connector.refreshToken({
@@ -354,6 +356,7 @@ describe('TwitchConnector — refreshToken', () => {
     });
     expect(token.accessToken).toBe('new-access');
     expect(token.expiresAt).toBe('2026-07-04T16:00:00.000Z');
+    expect(capturedBody?.get('client_secret')).toBe('app-secret');
   });
 
   it('throws TokenRevokedError when Twitch rejects the refresh grant', async () => {
@@ -425,6 +428,45 @@ describe('TwitchConnector — authenticate', () => {
     expect(result.token?.accessToken).toBe('a1');
     expect(result.profile?.remoteId).toBe('broadcaster-1');
     expect(result.profile?.handle).toBe('coolstreamer');
+  });
+
+  it('sends client_secret (and no PKCE params) in the token exchange body — Twitch requires a confidential client', async () => {
+    // Regression test for the field bug: Twitch's authorization-code grant does
+    // NOT support PKCE and REQUIRES client_secret (dev.twitch.tv/docs/authentication/getting-tokens-oauth).
+    // The auth registry no longer sends a codeVerifier for Twitch, but this
+    // connector-level test pins the actual request body regardless of what the
+    // caller passes in.
+    const connector = new TwitchConnector({ logger: createTestLogger([]) });
+    let capturedBody: URLSearchParams | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL, init?: RequestInit) => {
+        const u = new URL(url);
+        if (u.pathname === '/oauth2/token') {
+          capturedBody = init?.body as URLSearchParams;
+          return Promise.resolve(jsonResponse(200, { access_token: 'a1', refresh_token: 'r1', expires_in: 14400 }));
+        }
+        if (u.pathname === '/oauth2/validate') {
+          return Promise.resolve(jsonResponse(200, { client_id: 'app-client-id', login: 'coolstreamer', user_id: 'broadcaster-1' }));
+        }
+        if (u.pathname === '/helix/users') {
+          return Promise.resolve(jsonResponse(200, { data: [{ id: 'broadcaster-1', login: 'coolstreamer', display_name: 'CoolStreamer', profile_image_url: 'https://x/img.png' }] }));
+        }
+        throw new Error(`unexpected ${u.pathname}`);
+      }),
+    );
+
+    await connector.authenticate({
+      kind: 'exchange_code',
+      app: { clientId: 'app-client-id', clientSecret: 'app-secret', redirectUri: 'https://app.example/callback' },
+      code: 'auth-code-123',
+      // No codeVerifier passed — matches how the registry now drives Twitch (auth_code, not auth_code_pkce).
+    });
+
+    expect(capturedBody?.get('client_secret')).toBe('app-secret');
+    expect(capturedBody?.get('grant_type')).toBe('authorization_code');
+    expect(capturedBody?.has('code_challenge')).toBe(false);
+    expect(capturedBody?.has('code_verifier')).toBe(false);
   });
 });
 

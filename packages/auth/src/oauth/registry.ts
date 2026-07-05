@@ -58,9 +58,11 @@ export interface FlowDescriptor {
  *   or an incoming-webhook URL (static, non-expiring secrets), paired directly
  *   with no code exchange. The user-context OAuth path (`auth_code_pkce`, e.g.
  *   `webhook.incoming`) is offered as an alternate and does refresh.
- * - **twitch** — primary is `auth_code_pkce` (Twitch supports PKCE, ~4h access
- *   tokens with a rotating refresh token). `device_code` (headless) and
- *   `client_credentials` (public/read app token) are alternates.
+ * - **twitch** — primary is `auth_code` (confidential client, no PKCE — Twitch's
+ *   authorization-code grant does NOT support PKCE and REQUIRES a client
+ *   secret in the token exchange per dev.twitch.tv/docs/authentication/getting-tokens-oauth;
+ *   ~4h access tokens with a rotating refresh token). `device_code` (headless)
+ *   and `client_credentials` (public/read app token) are alternates.
  * - **bluesky** — `platform_password`: exchange handle + app password for an
  *   `accessJwt`/`refreshJwt` session; the app password is sealed as a
  *   non-current bootstrap row.
@@ -75,8 +77,8 @@ export const FLOW_REGISTRY: Record<string, FlowDescriptor> = {
   },
   twitch: {
     platformId: 'twitch',
-    grant: 'auth_code_pkce',
-    usesPkce: true,
+    grant: 'auth_code',
+    usesPkce: false,
     refreshable: true,
     defaultTokenType: 'Bearer',
     alternates: ['device_code', 'client_credentials'],

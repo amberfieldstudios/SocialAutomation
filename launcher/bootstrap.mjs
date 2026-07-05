@@ -73,9 +73,15 @@ async function main() {
 
   const nodeModulesPresent = existsSync(path.join(repoRoot, 'node_modules'));
   const uiDistPresent = existsSync(path.join(repoRoot, 'packages', 'ui', 'dist', 'index.html'));
-  const apiViteNode = path.join(repoRoot, 'packages', 'api', 'node_modules', 'vite-node', 'vite-node.mjs');
+  // The packaged distributable uses a hoisted (flat) node_modules, so
+  // vite-node lives at the root; a dev checkout's default pnpm layout puts it
+  // under packages/api. Accept either.
+  const apiViteNode = [
+    path.join(repoRoot, 'node_modules', 'vite-node', 'vite-node.mjs'),
+    path.join(repoRoot, 'packages', 'api', 'node_modules', 'vite-node', 'vite-node.mjs'),
+  ].find(existsSync);
 
-  if (!nodeModulesPresent || !uiDistPresent || !existsSync(apiViteNode)) {
+  if (!nodeModulesPresent || !uiDistPresent || !apiViteNode) {
     // A packaged distributable ships prebuilt; if pieces are missing, this
     // copy is either corrupted/incomplete or is a bare source checkout that
     // hasn't been set up for development yet. Either way, don't silently
@@ -85,7 +91,7 @@ async function main() {
         [
           !nodeModulesPresent && 'dependencies',
           !uiDistPresent && 'the built dashboard',
-          !existsSync(apiViteNode) && 'the server runtime',
+          !apiViteNode && 'the server runtime',
         ]
           .filter(Boolean)
           .join(', ') +

@@ -76,18 +76,23 @@ website, not inside SocialAutomation.
    button next to it. Copy it and paste it into this box on Twitch's page,
    exactly as shown.
 5. **Category** — choose "Application Integration".
-6. **Client Type** — choose "Public".
+6. **Client Type** — choose "Confidential". Twitch requires this so it can
+   trust that only you can use the app; "Public" will not work here.
 7. Click **Create**, then open the application you just created.
 8. Copy the **Client ID** shown there and paste it into the wizard's
    **App ID (Client ID)** field.
-9. Click **Save app details** in the wizard.
-10. Click **Connect Twitch**. A sign-in window opens on Twitch's own site —
+9. Click **New Secret**. Twitch shows the secret only once, so copy it
+   right away and paste it into the wizard's **App secret (Client Secret)**
+   field before leaving the page.
+10. Click **Save app details** in the wizard.
+11. Click **Connect Twitch**. A sign-in window opens on Twitch's own site —
     you approve access there, on Twitch, never inside SocialAutomation.
     When you approve, you're sent right back and the wizard shows
     "Connected."
 
-Twitch doesn't require an app secret for this kind of connection, so you
-won't see a secret field for Twitch.
+Twitch requires an app secret for this connection (unlike some other
+platforms), so the wizard will show you a secret field for Twitch — make
+sure you save the one Twitch gives you, since it's only shown once.
 
 ---
 
